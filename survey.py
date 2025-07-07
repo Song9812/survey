@@ -1,80 +1,190 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
-import uuid # 고유 ID 생성을 위해 uuid 라이브러리 import
+import os # 파일 존재 여부 확인 및 삭제를 위해 추가
 
-# --- 1. 설문조사 질문 정의 ---
-# 앙케이트 문항을 딕셔너리로 정의합니다.
-# 'type': 질문 유형 (text, selectbox, slider, radio)
-# 'options': selectbox나 radio, slider에 필요한 옵션
-survey_questions = {
-    # 익명 설문을 위해 'name'과 'class_name' 필드는 제거했습니다.
-    "q1": {"title": "이번 학기 동안 가장 기억에 남는 학급 활동은 무엇인가요?", "type": "text"},
-    "q2": {"title": "가장 좋았던 수업은 무엇이었고, 그 이유는 무엇인가요?", "type": "text"},
-    "q3": {"title": "다음 학기에 학급에서 어떤 활동을 추가하고 싶으신가요?", "type": "text"},
-    "q4": {"title": "본인의 학급 기여도에 대해 5점 척도로 평가해주세요. (1: 전혀 기여하지 못함, 5: 매우 많이 기여함)", "type": "radio", "options": [1, 2, 3, 4, 5]},
-    "q5": {"title": "학급 분위기는 전반적으로 어떠했다고 생각하나요?", "type": "selectbox", "options": ["매우 좋았다", "좋았다", "보통이었다", "나빴다", "매우 나빴다"]},
-    "q6": {"title": "선생님께 하고 싶은 말이 있다면 자유롭게 적어주세요.", "type": "text"},
-}
+# CSV 파일 경로
+CSV_FILE = "survey_responses.csv"
 
-# --- 2. Streamlit UI 구성 ---
-st.set_page_config(page_title="학기말 학급 앙케이트 (익명)", layout="centered")
+def get_survey_data():
+    """기존 설문 응답 데이터를 불러옵니다. 파일이 없으면 빈 DataFrame을 반환합니다."""
+    if os.path.exists(CSV_FILE):
+        return pd.read_csv(CSV_FILE)
+    return pd.DataFrame()
 
-st.title("👨‍🏫 학기말 학급 앙케이트 (익명)")
-st.write("이번 학기 동안의 학급 생활에 대한 여러분의 소중한 의견을 듣기 위한 설문입니다.")
-st.write("**이 설문은 완벽하게 익명으로 진행됩니다.** 답변 내용은 통계적인 목적으로만 사용되며, 개인적인 내용은 절대 공개되지 않습니다.")
+def save_survey_data(data):
+    """새로운 응답 데이터를 CSV 파일에 추가합니다."""
+    try:
+        # 기존 데이터 불러오기
+        df = get_survey_data()
+        
+        # 새로운 응답을 DataFrame으로 변환
+        new_row_df = pd.DataFrame([data])
+
+        # 기존 데이터와 새 데이터 합치기
+        # 컬럼 순서가 다를 수 있으므로 concat 후 다시 정렬
+        updated_df = pd.concat([df, new_row_df], ignore_index=True)
+        
+        # 모든 컬럼이 문자열 타입이 되도록 변환 (향후 데이터 처리 용이)
+        updated_df = updated_df.astype(str)
+
+        updated_df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig') # 한글 깨짐 방지를 위해 'utf-8-sig' 사용
+        st.success("설문 응답이 성공적으로 저장되었습니다.")
+    except Exception as e:
+        st.error(f"CSV 파일 저장 중 오류 발생: {e}")
+
+st.set_page_config(
+    page_title="우리 반 설문조사",
+    layout="centered",
+    initial_sidebar_state="auto",
+)
+
+st.title("👨‍🏫 우리 반 설문조사 👩‍🏫")
+st.write("1학기를 돌아보고 2학기를 더욱 즐겁게 만들기 위한 설문조사입니다. 솔직하게 답변해주세요!")
 st.markdown("---")
 
-with st.form(key='class_survey_form'):
-    st.header("✨ 설문 참여")
+with st.form(key="class_survey_form"):
+    st.subheader("친구에 대한 질문")
+    st.write("각 질문에 대해 해당하는 친구 3명을 선택하거나 직접 입력해주세요. (익명으로 진행됩니다.)")
 
-    # 응답 저장 딕셔너리
-    responses = {}
+    # 학생 이름 목록 (예시) - 실제 학생 이름으로 변경해주세요.
+    # 학생 수가 많다면 이 목록을 파일에서 불러오거나 데이터베이스에서 가져오는 것이 좋습니다.
+    student_names = ["선택 안 함", "김철수", "이영희", "박지민", "최현우", "정예은", "이지수", "강민준", "윤서연", "한동현", "기타 직접 입력"]
 
-    # 익명성을 위해 타임스탬프와 함께 고유 ID 부여
-    responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    responses['anonymous_id'] = str(uuid.uuid4()) # 무작위 고유 ID 생성
+    # 1. 우리 반에 웃음을 제공해주는 친구(3명)
+    st.write("1. 우리 반에 웃음을 제공해주는 친구 (최대 3명)")
+    friends_laughter = st.multiselect(
+        "웃음을 제공해주는 친구를 선택해주세요:",
+        options=student_names,
+        key="laughter_friends",
+        max_selections=3
+    )
+    friends_laughter_etc = ""
+    if "기타 직접 입력" in friends_laughter:
+        friends_laughter_etc = st.text_input("직접 입력 (웃음을 제공해주는 친구):", key="laughter_friends_etc")
 
-    # 설문 문항들을 UI에 표시
-    for key, item in survey_questions.items():
-        if item["type"] == "text":
-            responses[key] = st.text_area(f"{item['title']}", key=key)
-        elif item["type"] == "selectbox":
-            responses[key] = st.selectbox(f"{item['title']}", item['options'], key=key)
-        elif item["type"] == "slider":
-            responses[key] = st.slider(f"{item['title']}", min_value=item['options'][0], max_value=item['options'][1], step=1, key=key)
-        elif item["type"] == "radio":
-            responses[key] = st.radio(f"{item['title']}", item['options'], key=key, horizontal=True)
+    # 2. 우리 반에서 나와 가장 많이 함께한 친구(3명)
+    st.write("2. 우리 반에서 나와 가장 많이 함께한 친구 (최대 3명)")
+    friends_together = st.multiselect(
+        "가장 많이 함께한 친구를 선택해주세요:",
+        options=student_names,
+        key="together_friends",
+        max_selections=3
+    )
+    friends_together_etc = ""
+    if "기타 직접 입력" in friends_together:
+        friends_together_etc = st.text_input("직접 입력 (가장 많이 함께한 친구):", key="together_friends_etc")
+
+    # 3. 우리 반에서 가장 친절한 것 같은 친구(3명)
+    st.write("3. 우리 반에서 가장 친절한 것 같은 친구 (최대 3명)")
+    friends_kind = st.multiselect(
+        "가장 친절한 친구를 선택해주세요:",
+        options=student_names,
+        key="kind_friends",
+        max_selections=3
+    )
+    friends_kind_etc = ""
+    if "기타 직접 입력" in friends_kind:
+        friends_kind_etc = st.text_input("직접 입력 (가장 친절한 친구):", key="kind_friends_etc")
+
+    # 4. 우리 반에서 나의 비밀을 잘 지켜줄 것 같은 친구(3명)
+    st.write("4. 우리 반에서 나의 비밀을 잘 지켜줄 것 같은 친구 (최대 3명)")
+    friends_secret = st.multiselect(
+        "비밀을 잘 지켜줄 것 같은 친구를 선택해주세요:",
+        options=student_names,
+        key="secret_friends",
+        max_selections=3
+    )
+    friends_secret_etc = ""
+    if "기타 직접 입력" in friends_secret:
+        friends_secret_etc = st.text_input("직접 입력 (비밀을 잘 지켜줄 것 같은 친구):", key="secret_friends_etc")
+
+    # 5. 우리 반에서 졸업식 날 눈물을 흘릴 것 같은 친구(3명)
+    st.write("5. 우리 반에서 졸업식 날 눈물을 흘릴 것 같은 친구 (최대 3명)")
+    friends_cry = st.multiselect(
+        "졸업식 날 눈물을 흘릴 것 같은 친구를 선택해주세요:",
+        options=student_names,
+        key="cry_friends",
+        max_selections=3
+    )
+    friends_cry_etc = ""
+    if "기타 직접 입력" in friends_cry:
+        friends_cry_etc = st.text_input("직접 입력 (졸업식 날 눈물을 흘릴 것 같은 친구):", key="cry_friends_etc")
+
+    # 6. 우리 반에서 2학기에 더 가까워지고 싶은 친구(3명)
+    st.write("6. 2학기에 더 가까워지고 싶은 친구 (최대 3명)")
+    friends_closer = st.multiselect(
+        "2학기에 더 가까워지고 싶은 친구를 선택해주세요:",
+        options=student_names,
+        key="closer_friends",
+        max_selections=3
+    )
+    friends_closer_etc = ""
+    if "기타 직접 입력" in friends_closer:
+        friends_closer_etc = st.text_input("직접 입력 (2학기에 더 가까워지고 싶은 친구):", key="closer_friends_etc")
 
     st.markdown("---")
-    submit_button = st.form_submit_button(label='앙케이트 제출하기')
+    st.subheader("자유 응답 질문")
 
-    if submit_button:
-        # --- 3. 데이터 처리 및 저장 ---
-        excel_file = "class_survey_results_anonymous.xlsx" # 익명 설문임을 나타내는 파일명
+    # 7. 1학기 동안 기억에 남는 에피소드
+    episode = st.text_area("7. 1학기 동안 기억에 남는 에피소드는 무엇인가요?", key="episode")
 
-        # 새로운 응답을 DataFrame으로 변환
-        new_df = pd.DataFrame([responses])
+    # 8. 1학기를 보내며 아쉬웠던 일
+    regret = st.text_area("8. 1학기를 보내며 아쉬웠던 일은 무엇인가요?", key="regret")
 
-        if os.path.exists(excel_file):
-            # 파일이 존재하면 기존 데이터를 불러와서 추가
-            existing_df = pd.read_excel(excel_file)
-            updated_df = pd.concat([existing_df, new_df], ignore_index=True)
-        else:
-            # 파일이 없으면 새 DataFrame을 사용
-            updated_df = new_df
+    # 9. 2학기의 다짐
+    resolution = st.text_area("9. 2학기에는 어떤 다짐을 하고 싶나요?", key="resolution")
 
-        try:
-            # DataFrame을 엑셀 파일로 저장 (인덱스 제외)
-            updated_df.to_excel(excel_file, index=False)
-            st.success("앙케이트가 성공적으로 제출되었습니다. 감사합니다!")
-            st.balloons() # 제출 성공 시 풍선 애니메이션
+    # 10. 졸업하기 전에 학급에서 해보고 싶은 일
+    wish = st.text_area("10. 졸업하기 전에 학급에서 꼭 해보고 싶은 일이 있다면 알려주세요!", key="wish")
 
-            # 제출 후 입력 필드를 초기화하기 위해 앱을 다시 실행합니다.
-            st.rerun()
-        except Exception as e:
-            st.error(f"데이터 저장 중 오류가 발생했습니다: {e}")
+    # 11. 담임선생님에게 하고 싶은 말
+    message_to_teacher = st.text_area("11. 담임선생님에게 하고 싶은 말이 있다면 자유롭게 남겨주세요.", key="message_to_teacher")
+
+    st.markdown("---")
+    submitted = st.form_submit_button("설문 제출하기")
+
+    if submitted:
+        # 각 질문에 대한 답변을 딕셔너리로 저장
+        response_data = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "1. 웃음을 주는 친구": ", ".join([f for f in friends_laughter if f != "기타 직접 입력"]) + (f" ({friends_laughter_etc})" if friends_laughter_etc else ""),
+            "2. 가장 많이 함께한 친구": ", ".join([f for f in friends_together if f != "기타 직접 입력"]) + (f" ({friends_together_etc})" if friends_together_etc else ""),
+            "3. 가장 친절한 친구": ", ".join([f for f in friends_kind if f != "기타 직접 입력"]) + (f" ({friends_kind_etc})" if friends_kind_etc else ""),
+            "4. 비밀을 지켜줄 친구": ", ".join([f for f in friends_secret if f != "기타 직접 입력"]) + (f" ({friends_secret_etc})" if friends_secret_etc else ""),
+            "5. 졸업식 날 눈물 흘릴 친구": ", ".join([f for f in friends_cry if f != "기타 직접 입력"]) + (f" ({friends_cry_etc})" if friends_cry_etc else ""),
+            "6. 2학기 더 가까워지고 싶은 친구": ", ".join([f for f in friends_closer if f != "기타 직접 입력"]) + (f" ({friends_closer_etc})" if friends_closer_etc else ""),
+            "7. 기억에 남는 에피소드": episode,
+            "8. 아쉬웠던 일": regret,
+            "9. 2학기 다짐": resolution,
+            "10. 졸업 전 해보고 싶은 일": wish,
+            "11. 담임선생님께 하고 싶은 말": message_to_teacher,
+        }
+
+        save_survey_data(response_data)
+        st.balloons() # 설문 제출 후 풍선 효과
 
 st.markdown("---")
-st.markdown("© 2024 학급 앙케이트 프로그램")
+st.subheader("선생님용: 설문 결과 다운로드")
+
+# 현재까지 저장된 데이터를 불러와서 다운로드 버튼에 연결
+current_data = get_survey_data()
+
+if not current_data.empty:
+    # DataFrame을 CSV 문자열로 변환 (한글 인코딩 포함)
+    csv_string = current_data.to_csv(index=False, encoding='utf-8-sig')
+    
+    st.download_button(
+        label="설문 결과 엑셀(CSV) 파일로 다운로드",
+        data=csv_string,
+        file_name="class_survey_results.csv",
+        mime="text/csv",
+        help="클릭하면 현재까지 제출된 모든 설문 응답이 CSV 파일로 다운로드됩니다. 이 파일을 엑셀에서 열 수 있습니다."
+    )
+    st.info("설문 결과는 'class_survey_results.csv' 파일로 다운로드되며, 이 파일은 Microsoft Excel, Google Sheets 등에서 열 수 있습니다.")
+else:
+    st.info("아직 제출된 설문 응답이 없습니다.")
+
+# (선택 사항) 설문 결과 미리보기 (선생님만 볼 수 있도록 비밀번호 등으로 보호할 수 있습니다.)
+# st.subheader("설문 결과 미리보기 (개발용)")
+# st.dataframe(current_data)
