@@ -2,14 +2,14 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+import uuid # 고유 ID 생성을 위해 uuid 라이브러리 import
 
 # --- 1. 설문조사 질문 정의 ---
 # 앙케이트 문항을 딕셔너리로 정의합니다.
 # 'type': 질문 유형 (text, selectbox, slider, radio)
 # 'options': selectbox나 radio, slider에 필요한 옵션
 survey_questions = {
-    "name": {"title": "이름 (선택 사항)", "type": "text"},
-    "class_name": {"title": "반 (예: 1학년 3반)", "type": "text"},
+    # 익명 설문을 위해 'name'과 'class_name' 필드는 제거했습니다.
     "q1": {"title": "이번 학기 동안 가장 기억에 남는 학급 활동은 무엇인가요?", "type": "text"},
     "q2": {"title": "가장 좋았던 수업은 무엇이었고, 그 이유는 무엇인가요?", "type": "text"},
     "q3": {"title": "다음 학기에 학급에서 어떤 활동을 추가하고 싶으신가요?", "type": "text"},
@@ -19,11 +19,11 @@ survey_questions = {
 }
 
 # --- 2. Streamlit UI 구성 ---
-st.set_page_config(page_title="학기말 학급 앙케이트", layout="centered")
+st.set_page_config(page_title="학기말 학급 앙케이트 (익명)", layout="centered")
 
-st.title("👨‍🏫 학기말 학급 앙케이트")
+st.title("👨‍🏫 학기말 학급 앙케이트 (익명)")
 st.write("이번 학기 동안의 학급 생활에 대한 여러분의 소중한 의견을 듣기 위한 설문입니다.")
-st.write("솔직하고 자유로운 답변 부탁드립니다. 답변 내용은 통계적인 목적으로만 사용되며, 개인적인 내용은 공개되지 않습니다.")
+st.write("**이 설문은 완벽하게 익명으로 진행됩니다.** 답변 내용은 통계적인 목적으로만 사용되며, 개인적인 내용은 절대 공개되지 않습니다.")
 st.markdown("---")
 
 with st.form(key='class_survey_form'):
@@ -32,9 +32,11 @@ with st.form(key='class_survey_form'):
     # 응답 저장 딕셔너리
     responses = {}
 
-    # 사용자 기본 정보
+    # 익명성을 위해 타임스탬프와 함께 고유 ID 부여
     responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    responses['anonymous_id'] = str(uuid.uuid4()) # 무작위 고유 ID 생성
 
+    # 설문 문항들을 UI에 표시
     for key, item in survey_questions.items():
         if item["type"] == "text":
             responses[key] = st.text_area(f"{item['title']}", key=key)
@@ -49,15 +51,9 @@ with st.form(key='class_survey_form'):
     submit_button = st.form_submit_button(label='앙케이트 제출하기')
 
     if submit_button:
-        # 모든 필수 질문에 대한 답변 확인 (필요시 추가)
-        # 예시: 이름과 반은 선택 사항으로 두었으므로, 필수로 만들 경우 이곳에서 체크
-        # if not responses['name'] or not responses['class_name']:
-        #     st.error("이름과 반은 필수 입력 사항입니다.")
-        # else:
-
         # --- 3. 데이터 처리 및 저장 ---
-        excel_file = "class_survey_results.xlsx"
-        
+        excel_file = "class_survey_results_anonymous.xlsx" # 익명 설문임을 나타내는 파일명
+
         # 새로운 응답을 DataFrame으로 변환
         new_df = pd.DataFrame([responses])
 
@@ -70,11 +66,13 @@ with st.form(key='class_survey_form'):
             updated_df = new_df
 
         try:
+            # DataFrame을 엑셀 파일로 저장 (인덱스 제외)
             updated_df.to_excel(excel_file, index=False)
             st.success("앙케이트가 성공적으로 제출되었습니다. 감사합니다!")
             st.balloons() # 제출 성공 시 풍선 애니메이션
-            # 제출 후 입력 필드 초기화 (필요시)
-            st.experimental_rerun() # 페이지 새로고침으로 입력 필드 초기화
+
+            # 제출 후 입력 필드를 초기화하기 위해 앱을 다시 실행합니다.
+            st.rerun()
         except Exception as e:
             st.error(f"데이터 저장 중 오류가 발생했습니다: {e}")
 
